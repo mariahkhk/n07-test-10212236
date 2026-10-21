@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r flask/requirements.txt pytest
+      - run: pytest flask -v
+
+  konteiner:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t flask-app ./flask
+      - run: docker run -d -p 5000:5000 --name flask1 flask-app
+      - run: curl -fsS --retry 10 --retry-all-errors --retry-delay 1 localhost:5000/health
+      - if: failure()
+        run: docker logs flask1
