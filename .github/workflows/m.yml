@@ -1,0 +1,19 @@
+name: MON2
+on: push
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: {python-version: "3.12"}
+      - run: bash e2e.sh
+      - name: autograder
+        run: |
+          cd repo; ok=0
+          for i in $(seq 0 5); do
+            n=$(jq -r ".[$i].name" ../ag.json); s=$(jq -r ".[$i].setup // empty" ../ag.json); r=$(jq -r ".[$i].run" ../ag.json)
+            [ -n "$s" ] && bash -c "$s" >/dev/null 2>&1
+            if bash -c "$r" > /tmp/o 2>&1; then echo "PASS $n"; else echo "FAIL $n"; tail -5 /tmp/o; ok=1; fi
+          done
+          docker compose -f konf/compose.yaml down -v >/dev/null 2>&1; exit $ok

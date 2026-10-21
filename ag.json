@@ -1,0 +1,40 @@
+[
+  {
+    "name": "K1. Failid olemas ja pole tühjad",
+    "type": "run",
+    "points": 10,
+    "run": "for f in README.md konf/compose.yaml logid/a2-compose-ps.txt logid/a5-andmebaas.txt; do test -s \"$f\" || { echo \"puudub või tühi: $f\"; exit 1; }; done; git ls-files --error-unmatch .env konf/.env >/dev/null 2>&1 && { echo '.env on repos - eemalda: git rm --cached <fail>'; exit 1; }; exit 0"
+  },
+  {
+    "name": "K2. compose.yaml: kolm teenust, Zabbix 7.0 kindla versiooniga, parool muutujast",
+    "type": "run",
+    "points": 20,
+    "setup": "pip install --quiet pyyaml",
+    "run": "sed -i 's/\\r$//' konf/compose.yaml 2>/dev/null; python3 - <<'PYEOF'\nimport yaml, re, sys\nd = yaml.safe_load(open(\"konf/compose.yaml\", encoding=\"utf-8\")) or {}\nsv = d.get(\"services\") or {}\nimgs = {n: str(s.get(\"image\", \"\")) for n, s in sv.items()}\ndef find(pat): return [n for n, i in imgs.items() if re.search(pat, i)]\nif not find(r\"^postgres:\"): sys.exit(\"postgres teenus puudub (A1)\")\nfor kind in (\"server-pgsql\", \"web-nginx-pgsql\"):\n    f = find(r\"zabbix/zabbix-\" + kind + \":\")\n    if not f: sys.exit(f\"zabbix-{kind} image puudub (A1)\")\n    if not re.search(r\":(alpine|ubuntu|ol)-7\\.0\\.\\d+$\", imgs[f[0]]): sys.exit(f\"{imgs[f[0]]}: kasuta kindlat 7.0 versiooni, nt alpine-7.0.32 (mitte latest)\")\ntxt = open(\"konf/compose.yaml\", encoding=\"utf-8\").read()\nfor m in re.finditer(r\"POSTGRES_PASSWORD\\s*[:=]\\s*(\\S+)\", txt):\n    if \"${\" not in m.group(1): sys.exit(\"parool on compose.yaml-is tavatekstina - pane see .env faili ja kasuta ${MUUTUJA}\")\nif \"8080\" not in txt: sys.exit(\"veebiliides peab olema pordil 8080\")\nprint(\"compose.yaml OK:\", \", \".join(f\"{n}={i}\" for n, i in imgs.items()))\nPYEOF"
+  },
+  {
+    "name": "K3. compose.yaml käivitub ja veebiliides vastab (Zabbix 7.0)",
+    "type": "run",
+    "points": 25,
+    "timeout": 420,
+    "run": "sed -i 's/\\r$//' konf/compose.yaml 2>/dev/null; cd konf; for v in $(grep -o '\\${[A-Za-z_][A-Za-z0-9_]*' compose.yaml | tr -d '${' | sort -u); do echo \"$v=ag_$(date +%s%N)\"; done > .env; docker compose up -d >/tmp/up.log 2>&1 || { tail -20 /tmp/up.log; exit 1; }; for i in $(seq 1 60); do curl -fs -o /dev/null localhost:8080/ && break; sleep 3; done; v=$(curl -s -X POST -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\":\"2.0\",\"method\":\"apiinfo.version\",\"params\":{},\"id\":1}' localhost:8080/api_jsonrpc.php); echo \"$v\"; echo \"$v\" | grep -q '\"7\\.0\\.' || { docker compose ps -a; docker compose logs --tail 15; exit 1; }; t=$(curl -s -X POST -H 'Content-Type: application/json-rpc' -d '{\"jsonrpc\":\"2.0\",\"method\":\"user.login\",\"params\":{\"username\":\"Admin\",\"password\":\"zabbix\"},\"id\":1}' localhost:8080/api_jsonrpc.php); echo \"$t\" | grep -q '\"result\"' && echo 'sisselogimine töötab (server + andmebaas korras)' || { echo \"$t\"; exit 1; }"
+  },
+  {
+    "name": "K4. a2-compose-ps.txt: kolm konteinerit Up, veebiliides pordil 8080",
+    "type": "run",
+    "points": 15,
+    "run": "f=logid/a2-compose-ps.txt; n=$(grep -cE '\\bUp\\b' $f); echo \"Up ridu: $n\"; test \"$n\" -ge 3 || { echo 'vaja kolme Up rida (A2: docker compose ps)'; exit 1; }; grep -q 'zabbix-web' $f && grep -q '8080' $f || { echo 'zabbix-web ja port 8080 puudu'; exit 1; }; grep -q 'zabbix-server' $f || { echo 'zabbix-server puudu'; exit 1; }"
+  },
+  {
+    "name": "K5. a5-andmebaas.txt: proxmox2, proxmox3 ja lahenenud probleem",
+    "type": "run",
+    "points": 20,
+    "run": "f=logid/a5-andmebaas.txt; grep -q 'proxmox2' $f && grep -q 'proxmox3' $f || { echo 'hostid proxmox2 ja proxmox3 puudu (A4, A5)'; exit 1; }; grep -i 'ICMP ping' $f | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}.*[0-9]{4}-[0-9]{2}-[0-9]{2}' || { echo 'probleem Unavailable by ICMP ping peab olema koos algus- ja lahenemisajaga (A5: paranda IP ja oota)'; exit 1; }"
+  },
+  {
+    "name": "K6. README.md: ennustused ja vastused täidetud",
+    "type": "run",
+    "points": 10,
+    "run": "n=$(grep -c '_vastus_' README.md); echo \"täitmata: $n\"; test \"$n\" -eq 0"
+  }
+]
