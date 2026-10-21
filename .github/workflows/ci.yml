@@ -10,5 +10,5 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install pytest
+      - run: pip install -r flask/requirements.txt pytest
       - run: pytest flask -v
