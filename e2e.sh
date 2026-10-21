@@ -4,7 +4,7 @@ mkdir -p ~/zabbix && cp zcompose.yaml ~/zabbix/compose.yaml && cd ~/zabbix
 echo "ZBX_DB_PASSWORD=$(openssl rand -hex 12)" > .env
 echo "== A2 port kinni"; docker run -d --name ankur -p 8080:80 nginx:1.27 >/dev/null
 docker compose up -d 2>&1 | grep -i "allocated"; docker compose ps -a --format '{{.Service}} {{.State}}'
-docker rm -f ankur >/dev/null; docker compose up -d 2>/dev/null; for i in $(seq 60); do curl -fs -o /dev/null localhost:8080/ && break; sleep 2; done
+docker rm -f ankur >/dev/null; docker compose up -d 2>/dev/null; T0=$(date +%s); for i in $(seq 90); do api '{"jsonrpc":"2.0","method":"user.login","params":{"username":"Admin","password":"zabbix"},"id":1}' | grep -q '"result"' && break; sleep 2; done; echo "== login võimalik $(( $(date +%s)-T0 ))s"; docker compose logs zabbix-server | grep -E "schema|started \[main" | head -3
 docker compose ps > $GITHUB_WORKSPACE/repo/logid/a2-compose-ps.txt; cat $GITHUB_WORKSPACE/repo/logid/a2-compose-ps.txt
 cp compose.yaml $GITHUB_WORKSPACE/repo/konf/
 TOK=$(api '{"jsonrpc":"2.0","method":"user.login","params":{"username":"Admin","password":"zabbix"},"id":1}' | jq -r .result)
@@ -12,6 +12,7 @@ GW=$(docker network inspect zabbix_default -f '{{(index .IPAM.Config 0).Gateway}
 TPL=$(api '{"jsonrpc":"2.0","method":"template.get","params":{"filter":{"host":["ICMP Ping"]}},"id":1}' | jq -r '.result[0].templateid')
 mk(){ api "{\"jsonrpc\":\"2.0\",\"method\":\"host.create\",\"params\":{\"host\":\"$1\",\"interfaces\":[{\"type\":1,\"main\":1,\"useip\":1,\"ip\":\"$2\",\"dns\":\"\",\"port\":\"10050\"}],\"groups\":[{\"groupid\":\"2\"}],\"templates\":[{\"templateid\":\"$TPL\"}]},\"id\":1}" | jq -r '.result.hostids[0]'; }
 mk proxmox2 $GW >/dev/null; H3=$(mk proxmox3 10.255.255.1)
+api '{"jsonrpc":"2.0","method":"trigger.get","params":{"templateids":"'$TPL'","output":["description","expression"],"expandExpression":true},"id":1}' | jq -r '.result[]|"TRIGGER \(.description): \(.expression)"'
 echo "== A4 fping"; docker compose exec -T zabbix-server fping $GW; docker compose exec -T zabbix-server fping -t 500 10.255.255.1; echo "fping rc=$?"
 for i in $(seq 40); do p=$(api '{"jsonrpc":"2.0","method":"problem.get","params":{"output":["name"]},"id":1}' | jq -r '.result[].name'); [ -n "$p" ] && break; sleep 10; done; echo "== A5 probleem: $p ($((i*10))s)"
 IID=$(api "{\"jsonrpc\":\"2.0\",\"method\":\"hostinterface.get\",\"params\":{\"hostids\":\"$H3\"},\"id\":1}" | jq -r '.result[0].interfaceid')
