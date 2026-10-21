@@ -1,0 +1,8 @@
+name: ZBX
+on: push
+jobs:
+  z:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash z/t.sh
