@@ -6,4 +6,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "tere runnerist"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pytest flask -v
