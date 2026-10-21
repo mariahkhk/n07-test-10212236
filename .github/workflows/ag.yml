@@ -1,0 +1,85 @@
+name: AG
+on: push
+jobs:
+  t0:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: run
+        run: "for f in .github/workflows/ci.yml flask/app.py flask/requirements.txt flask/Dockerfile flask/test_app.py README.md; do test -f \"$f\" || { echo \"puudub: $f\"; exit 1; }; done"
+  t1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: setup
+        run: "pip install --quiet pyyaml"
+      - name: run
+        run: "python3 - <<'PYEOF'\nimport yaml, sys\ntry:\n    w = yaml.safe_load(open(\".github/workflows/ci.yml\", encoding=\"utf-8\"))\nexcept FileNotFoundError:\n    sys.exit(\"puudub .github/workflows/ci.yml\")\nexcept yaml.YAMLError as e:\n    sys.exit(f\"ci.yml ei ole korrektne YAML: {e}\")\nif not isinstance(w, dict): sys.exit(\"ci.yml on t\u00fchi\")\non = w.get(\"on\", w.get(True))\njobs = w.get(\"jobs\") or {}\ndef steps(j): return (j or {}).get(\"steps\") or []\ndef runs(j): return \"\\n\".join(str(s.get(\"run\", \"\")) for s in steps(j))\ndef uses(j): return [str(s.get(\"uses\", \"\")) for s in steps(j)]\n\nkeys = on if isinstance(on, (dict, list)) else [on]\nif \"push\" not in keys or \"pull_request\" not in keys: sys.exit(\"on: peab sisaldama nii push kui pull_request (Osa 5.1)\")\nprint(\"trigger OK\")\nPYEOF"
+  t2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: setup
+        run: "pip install --quiet pyyaml"
+      - name: run
+        run: "python3 - <<'PYEOF'\nimport yaml, sys\ntry:\n    w = yaml.safe_load(open(\".github/workflows/ci.yml\", encoding=\"utf-8\"))\nexcept FileNotFoundError:\n    sys.exit(\"puudub .github/workflows/ci.yml\")\nexcept yaml.YAMLError as e:\n    sys.exit(f\"ci.yml ei ole korrektne YAML: {e}\")\nif not isinstance(w, dict): sys.exit(\"ci.yml on t\u00fchi\")\non = w.get(\"on\", w.get(True))\njobs = w.get(\"jobs\") or {}\ndef steps(j): return (j or {}).get(\"steps\") or []\ndef runs(j): return \"\\n\".join(str(s.get(\"run\", \"\")) for s in steps(j))\ndef uses(j): return [str(s.get(\"uses\", \"\")) for s in steps(j)]\n\nj = jobs.get(\"test\")\nif not j: sys.exit(\"job nimega test puudub (Osa 2)\")\nu = uses(j); r = runs(j)\nif not any(x.startswith(\"actions/checkout@\") for x in u): sys.exit(\"test: actions/checkout puudub (Osa 3.2)\")\nif not any(x.startswith(\"actions/setup-python@\") for x in u): sys.exit(\"test: actions/setup-python puudub (Osa 3)\")\nif \"requirements.txt\" not in r: sys.exit(\"test: pip install -r flask/requirements.txt puudub (Osa 3.3)\")\nif \"pytest\" not in r: sys.exit(\"test: pytest samm puudub\")\nprint(\"job test OK\")\nPYEOF"
+  t3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: setup
+        run: "pip install --quiet -r flask/requirements.txt pytest"
+      - name: run
+        run: "sed -i 's/\\r$//' flask/*.py flask/requirements.txt flask/Dockerfile 2>/dev/null; n=$(grep -c '^def test_' flask/test_app.py); echo \"teste: $n\"; test \"$n\" -ge 3 || { echo 'flask/test_app.py: vaja v\u00e4hemalt 3 testi (Osa 7)'; exit 1; }; pytest flask -v"
+  t4:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: run
+        run: "sed -i 's/\\r$//' flask/*.py flask/requirements.txt flask/Dockerfile 2>/dev/null; docker build -q -t ag-flask ./flask >/dev/null || exit 1; docker run -d --rm -p 5000:5000 --name ag-flask ag-flask >/dev/null; out=$(curl -fsS --retry 10 --retry-all-errors --retry-delay 1 localhost:5000/health 2>&1 || true); echo \"$out\"; docker logs ag-flask 2>&1 | tail -3; docker stop ag-flask >/dev/null 2>&1; echo \"$out\" | tr -d ' ' | grep -q '\"status\":\"ok\"'"
+  t5:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: setup
+        run: "pip install --quiet pyyaml"
+      - name: run
+        run: "python3 - <<'PYEOF'\nimport yaml, sys\ntry:\n    w = yaml.safe_load(open(\".github/workflows/ci.yml\", encoding=\"utf-8\"))\nexcept FileNotFoundError:\n    sys.exit(\"puudub .github/workflows/ci.yml\")\nexcept yaml.YAMLError as e:\n    sys.exit(f\"ci.yml ei ole korrektne YAML: {e}\")\nif not isinstance(w, dict): sys.exit(\"ci.yml on t\u00fchi\")\non = w.get(\"on\", w.get(True))\njobs = w.get(\"jobs\") or {}\ndef steps(j): return (j or {}).get(\"steps\") or []\ndef runs(j): return \"\\n\".join(str(s.get(\"run\", \"\")) for s in steps(j))\ndef uses(j): return [str(s.get(\"uses\", \"\")) for s in steps(j)]\n\nj = jobs.get(\"konteiner\")\nif not j: sys.exit(\"job nimega konteiner puudub (Osa 6)\")\nneed = j.get(\"needs\") or []\nif isinstance(need, str): need = [need]\nif \"test\" not in need: sys.exit(\"konteiner: needs: test puudub (Osa 6)\")\nr = runs(j)\nif \"docker build\" not in r or \"curl\" not in r: sys.exit(\"konteiner: docker build ja curl samm puudub (Osa 6)\")\nprint(\"job konteiner OK\")\nPYEOF"
+  t6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: run
+        run: "grep -qiE '^#+ *N7 CI' README.md || { echo 'README.md: jaotis \"## N7 CI\" puudub'; exit 1; }; n=$(grep -oE 'github\\.com/[^ )]+/actions/runs/[0-9]+' README.md | sort -u | wc -l); echo \"run'i linke: $n\"; test \"$n\" -ge 2 || { echo 'README.md: lisa link \u00fchele punasele ja \u00fchele rohelisele run'\"'\"'ile (Actions -> run -> aadressiriba)'; exit 1; }"
+  t7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: setup
+        run: "pip install --quiet pyyaml"
+      - name: run
+        run: "test -f compose.yaml -o -f docker-compose.yml || { echo 'compose.yaml puudub'; exit 1; }; python3 - <<'PYEOF'\nimport yaml, sys\ntry:\n    w = yaml.safe_load(open(\".github/workflows/ci.yml\", encoding=\"utf-8\"))\nexcept FileNotFoundError:\n    sys.exit(\"puudub .github/workflows/ci.yml\")\nexcept yaml.YAMLError as e:\n    sys.exit(f\"ci.yml ei ole korrektne YAML: {e}\")\nif not isinstance(w, dict): sys.exit(\"ci.yml on t\u00fchi\")\non = w.get(\"on\", w.get(True))\njobs = w.get(\"jobs\") or {}\ndef steps(j): return (j or {}).get(\"steps\") or []\ndef runs(j): return \"\\n\".join(str(s.get(\"run\", \"\")) for s in steps(j))\ndef uses(j): return [str(s.get(\"uses\", \"\")) for s in steps(j)]\n\nj = jobs.get(\"stack\")\nif not j: sys.exit(\"job nimega stack puudub\")\nneed = j.get(\"needs\") or []\nif isinstance(need, str): need = [need]\nif not need: sys.exit(\"stack: needs puudub\")\nif \"docker compose\" not in runs(j): sys.exit(\"stack: docker compose samm puudub\")\nif \"secrets.POSTGRES_PASSWORD\" not in yaml.safe_dump(j) and \"secrets.POSTGRES_PASSWORD\" not in open(\".github/workflows/ci.yml\").read(): sys.exit(\"parool peab tulema ${{ secrets.POSTGRES_PASSWORD }}\")\nprint(\"stack OK\")\nPYEOF"
